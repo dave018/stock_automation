@@ -42,6 +42,19 @@ class DBAnalyzer:
             com_sql = sql + '"' + codes[i] + '";'
             tmp_df = pd.read_sql(com_sql, conn)
 
+            if start:
+                start_datetime = datetime.strptime(start, '%Y-%m-%d').date()
+                start_idx = tmp_df.index[tmp_df['date'] == start_datetime][0]
+            else:
+                start_idx = 0
+
+            if end:
+                end_datetime = datetime.strptime(end, '%Y-%m-%d').date()
+                end_idx = tmp_df.index[tmp_df['date'] == end_datetime][0]
+            else:
+                end_idx = len(tmp_df)
+            subset = tmp_df.loc[start_idx:end_idx, ['date', 'close']]
+
             fig = plt.figure(figsize=(12,8))
             ax = fig.add_subplot(1, 1, 1)
             ax.plot(tmp_df['date'], tmp_df['close'])
