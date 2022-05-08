@@ -32,12 +32,14 @@ class DBAnalyzer:
 
     def draw_chart(self, codes=[], start='', end=''):
         # 인자로 넘어온 code에 해당하는 기업의 주가 정보를 차트로 보여준다.
+        sql = 'SELECT * FROM daily_price WHERE code='
         dbc = DBConnector()
         conn = dbc.tmp_connect()
         cursor = conn.cursor()
 
         self.test_conn(cursor)
-        sql = 'SELECT * FROM daily_price WHERE code='
+        fig = plt.figure(figsize=(12, 8))
+        ax = fig.add_subplot(1, 1, 1)
         for i in range(len(codes)):
             com_sql = sql + '"' + codes[i] + '";'
             tmp_df = pd.read_sql(com_sql, conn)
@@ -55,7 +57,7 @@ class DBAnalyzer:
                 end_idx = len(tmp_df)
             subset = tmp_df.loc[start_idx:end_idx, ['date', 'close']]
 
-            fig = plt.figure(figsize=(12,8))
-            ax = fig.add_subplot(1, 1, 1)
-            ax.plot(tmp_df['date'], tmp_df['close'])
-            plt.show()
+            ax.plot(subset['date'], subset['close'])
+
+        plt.show()
+        return
