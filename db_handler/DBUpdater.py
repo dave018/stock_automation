@@ -110,6 +110,12 @@ class DBUpdater:
 
         return
 
+    def calc_diff(self, df_price):
+        l = len(df_price)
+        for i in range(l - 1):
+            df_price['diff'].iloc[i] = df_price['close'].iloc[i] - df_price['close'].iloc[i + 1]
+        return
+
     def read_naver_kr(self, code, company, pages_to_fetch):
         try:
             url = f'http://finance.naver.com/item/sise_day.naver?code={code}'
@@ -137,6 +143,7 @@ class DBUpdater:
             df[['close', 'diff', 'open', 'high', 'low', 'volume']] = \
                 df[['close', 'diff', 'open', 'high', 'low', 'volume']].astype(int) # pandas의 데이터프레임 데이터타입 한번에 바꾸기
             df = df[['date', 'open', 'high', 'low', 'close', 'diff', 'volume']]
+            self.calc_diff(df)
         except Exception as e:
             print('Exception occured', str(e))
             return None
