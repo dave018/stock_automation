@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from threading import Timer
 from datetime import datetime
 from urllib import request as req
+from db_handler.DBConnector import DBConnector
 
 ''' Vars for Web-scraping '''
 headers = ('User-Agent', 'Mozilla/5.0')
@@ -102,7 +103,7 @@ class DBUpdater:
                           f"VALUES ('{code}', '{company}', '{today}')"
                     curs.execute(sql)
                     self.codes[code] = company
-                    tmnow = datetime.now.strftime('%Y-%m-%d %H:%M')
+                    tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
                     print(f'[{tmnow}] #{idx+1:04d} REPLACE INTO company_info ' \
                           f'VALUES ({code}, {company}, {today})')
                 self.conn.commit()
@@ -171,3 +172,41 @@ class DBUpdater:
             if df is None:
                 continue
             self.replace_price_db(df, idx, code, self.codes[code])
+
+    def tmp_update_nas_company_info(self):
+        try:
+            with open('db_handler/nasdaq_stock.json', 'r', encoding="utf-8") as in_file:
+                nas = json.load(in_file)
+                print(nas)
+        except FileNotFoundError:
+            print("There isn't a json file for NASDAQ company info")
+
+        sql = 'SELECT * FROM nas_company_info'
+        df = pd.read_sql(sql, self.conn)
+        nas_codes = dict()
+        for idx in range(len(df)):
+            nas_codes[df['code'].values[idx]] = df['company'].values[idx]
+
+        with self.conn.cursor() as curs:
+            sql = 'SELECT max(last_update) FROM nas_company_info'
+            curs.execute(sql)
+            result = curs.fetchone()
+            today = datetime.today().strftime('%Y-%m-%d')
+            print(today)
+            if result[0] == None or result[0].strftime('%Y-%m-%d') < today:
+                for idx, company in enumerate(nas):
+                    code = nas[company]
+                    sql = f"REPLACE INTO nas_company_info (code, company, last_update) " \
+                          f"VALUES ('{code}', '{company}', '{today}')"
+                    curs.execute(sql)
+                    nas_codes[code] = company
+                    tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
+                    print(f'[{tmnow}] #{idx + 1:04d} REPLACE INTO company_info ' \
+                          f'VALUES ({code}, {company}, {today})')
+                self.conn.commit()
+
+        return
+
+    def update_nas_stock_price(self):
+
+        return
