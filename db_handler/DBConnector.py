@@ -14,7 +14,7 @@ class DBConnector:
     def __init__(self):
         return
 
-    def make_db(self, ):
+    def make_db(self):
         return
 
     def get_db(self, db_name):
