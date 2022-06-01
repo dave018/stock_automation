@@ -6,6 +6,10 @@ from threading import Timer
 from datetime import datetime
 from urllib import request as req
 from db_handler.DBConnector import DBConnector
+import yfinance as yf
+import requests
+import io
+import re
 
 ''' Vars for Web-scraping '''
 headers = ('User-Agent', 'Mozilla/5.0')
@@ -173,6 +177,39 @@ class DBUpdater:
                 continue
             self.replace_price_db(df, idx, code, self.codes[code])
 
+    def new_update_nas_company_info(self):
+        url = "https://pkgstore.datahub.io/core/nasdaq-listings/nasdaq-listed_csv/data/7665719fb51081ba0bd834fde71ce822/nasdaq-listed_csv.csv"
+        s = requests.get(url).content
+        companies = pd.read_csv(io.StringIO(s.decode('utf-8')))
+
+        sql = 'SELECT * FROM nas_company_info'
+        company_df = pd.read_sql(sql, self.conn)
+        company_code = dict()
+        for idx in range(len(company_df)):
+            company_code[company_df['code'].values[idx]] = company_df['company'].values[idx]
+
+        with self.conn.cursor() as curs:
+            sql = 'SELECT max(last_update) FROM nas_company_info'
+            curs.execute(sql)
+            result = curs.fetchone()
+            today = datetime.today().strftime('%Y-%m-%d')
+            print(today)
+            if result[0] == None or result[0].strftime('%Y-%m-%d') < today:
+                for idx in range(len(companies)):
+                    code = companies['Symbol'][idx]
+                    name = companies['Company Name'][idx]
+                    name = re.sub("[!',.@#$]", '', name)
+                    sql = f"REPLACE INTO nas_company_info (code, company, last_update) " \
+                          f"VALUES ('{code}', '{name}', '{today}')"
+                    curs.execute(sql)
+                    company_code[code] = name
+                    tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
+                    print(f'[{tmnow}] #{idx + 1:04d} REPLACE INTO company_info ' \
+                        f'VALUES ({code}, {name}, {today})')
+                self.conn.commit()
+
+        print(companies)
+
     def tmp_update_nas_company_info(self):
         try:
             with open('db_handler/nasdaq_stock.json', 'r', encoding="utf-8") as in_file:
@@ -207,6 +244,65 @@ class DBUpdater:
 
         return
 
-    def update_nas_stock_price(self):
+    def replace_nas_price_db(self, df, code):
+        try:
+            with self.conn.cursor() as curs:
+                for data in df.itertuples():
+                    date = datetime(data.Index.year, data.Index.month, data.Index.day).strftime('%Y-%m-%d')
+                    sql = f"REPLACE INTO nas_daily_price VALUES ('{code}', " \
+                          f"'{date}', {data.Open}, {data.High}, {data.Low}, {data.Close}, " \
+                          f"{data.Diff}, {data.Volume})"
+                    curs.execute(sql)
+                self.conn.commit()
+            print('[{}] {} : rows > REPLACE INTO nas_daily_price [OK]' \
+                  .format(datetime.now().strftime('%Y-%m-%d %H:%M'),  code))
+        except Exception as e:
+            print(e)
 
-        return
+    def read_nas_company_quotes(self, company, start, end):
+        try:
+            price = []
+            price_final = pd.DataFrame()
+            if start is not None:
+                price = yf.download(company, start=start, end=end, progress=False)
+#                date = price_df.index
+            else:
+                price = yf.download(company, progress=False)
+
+            if len(price) == 0:
+                None
+            else:
+                price['Name'] = company
+                price['Diff'] = price['Close'] - price['Open']
+
+            price_final = price_final.append(price, sort=False)
+            price_final.index.name = 'Date'
+            print(price_final)
+        except Exception as e:
+            print(e)
+        return price_final
+
+    def update_nas_stock_price(self):
+        """ Read historical qutoes of NASDAQ by using yfinance and update it to DB """
+        print("Get all-time stock price for all companies?(y/n)")
+        ans = input()
+        if ans == 'y':
+            start = None
+            end = None
+        if ans == "n":
+            print("Set start day(%YYYY-%mm-%dd")
+            ans = input()
+            ymd = ans.split('-')
+            start = datetime(ymd[0], ymd[1], ymd[2])
+            print("Set etart day(%YYYY-%mm-%dd")
+            ans = input()
+            ymd = ans.split('-')
+            end = datetime(ymd[0], ymd[1], ymd[2])
+
+        sql = 'SELECT * FROM nas_company_info'
+        companies = pd.read_sql(sql, self.conn)
+        for company in companies['code']:
+            if company == 'AFAM': # pymysql.err.OperationalError: (1054, "Unknown column 'nan' in 'field list'")
+                continue
+            df = self.read_nas_company_quotes(company, start, end)
+            self.replace_nas_price_db(df, company)
