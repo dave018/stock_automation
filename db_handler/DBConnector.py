@@ -38,10 +38,8 @@ class DBConnector:
         return self.conn
 
     def tmp_connect(self):
-        #self.conn = pymysql.connect(host='localhost', user='root', password='tpghks981!',
-        #                            db='sehwan_inv', charset='utf8')
         self.conn = pymysql.connect(host='localhost', user='root', password='tpghks981!',
-                                    charset='utf8')
+                                    db='sehwan_inv', charset='utf8')
         return self.conn
 
     def set_cmd_mode(self):
