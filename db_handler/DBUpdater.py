@@ -290,14 +290,14 @@ class DBUpdater:
             start = None
             end = None
         if ans == "n":
-            print("Set start day(%YYYY-%mm-%dd")
+            print("Set start day(%YYYY-%mm-%dd)")
             ans = input()
             ymd = ans.split('-')
-            start = datetime(ymd[0], ymd[1], ymd[2])
+            start = datetime(int(ymd[0]), int(ymd[1]), int(ymd[2]))
             print("Set etart day(%YYYY-%mm-%dd")
             ans = input()
             ymd = ans.split('-')
-            end = datetime(ymd[0], ymd[1], ymd[2])
+            end = datetime(int(ymd[0]), int(ymd[1]), int(ymd[2]))
 
         sql = 'SELECT * FROM nas_company_info'
         companies = pd.read_sql(sql, self.conn)
