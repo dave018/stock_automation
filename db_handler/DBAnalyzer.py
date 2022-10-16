@@ -50,38 +50,6 @@ class DBAnalyzer:
             self.stock_list.append(pd.read_sql(com_sql, conn))
         dbc.tmp_discon()
 
-    def draw_chart(self, codes=[], start='', end=''):
-        # 인자로 넘어온 code에 해당하는 기업의 주가 정보를 차트로 보여준다.
-        sql = 'SELECT * FROM daily_price WHERE code='
-        dbc = DBConnector()
-        conn = dbc.tmp_connect()
-        cursor = conn.cursor()
-
-        self.test_conn(cursor)
-        fig = plt.figure(figsize=(12, 8))
-        ax = fig.add_subplot(1, 1, 1)
-        for i in range(len(codes)):
-            com_sql = sql + '"' + codes[i] + '";'
-            tmp_df = pd.read_sql(com_sql, conn)
-
-            if start:
-                start_datetime = datetime.strptime(start, '%Y-%m-%d').date()
-                start_idx = tmp_df.index[tmp_df['date'] == start_datetime][0]
-            else:
-                start_idx = 0
-
-            if end:
-                end_datetime = datetime.strptime(end, '%Y-%m-%d').date()
-                end_idx = tmp_df.index[tmp_df['date'] == end_datetime][0]
-            else:
-                end_idx = len(tmp_df)
-            subset = tmp_df.loc[start_idx:end_idx, ['date', 'close']]
-
-            ax.plot(subset['date'], subset['close'])
-
-        plt.show()
-        return
-
     def set_date(self, date):
         if date is None:
             one_year_ago = datetime.today() - timedelta(day=365)
@@ -131,7 +99,30 @@ class DBAnalyzer:
 
         """ BETWEEN을 쓴 것 보다 <=, >= 사용한 쿼리의 처리 속도가 더 빠르다고 한다."""
 #              f" and date between '{start_date}' and '{end_date}'"
-        df = pd.read_sql(sql, conn)
+        stock_df = pd.read_sql(sql, conn)
         conn.close()
+
+        return stock_df
+
+    def draw_chart(self, start_date, end_date, codes=[]):
+        start = self.set_date(start_date)
+        end = self.set_date(end_date)
+
+        dbc = DBConnector()
+        conn = dbc.tmp_connect()
+
+        fig = plt.figure(figsize=(12, 8))
+        ax = fig.add_subplot(1, 1, 1)
+
+        for i in range(len(codes)):
+            sql = f"SELECT * FROM daily_price WHERE code='{codes[i]}' and date >= '{start}' " \
+                  f"and date <= '{end}'"
+            tmp_df = pd.read_sql(sql, conn)
+
+            subset = tmp_df.loc[0:, ['date', 'close']]
+
+            ax.plot(subset['date'], subset['close'])
+
+        plt.show()
 
         return
