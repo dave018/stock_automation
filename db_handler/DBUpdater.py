@@ -130,13 +130,17 @@ class DBUpdater:
 
         return pd.read_sql(sql, self.conn)
 
+    def get_daily_price_all(self):
+        sql = "SELECT * FROM " + table_name_daily_price
+        return pd.read_sql(sql, self.conn)
+
     def calc_diff(self, df_price):
         l = len(df_price)
         for i in range(l - 1):
             df_price['diff'].iloc[i] = df_price['close'].iloc[i] - df_price['close'].iloc[i + 1]
         return
 
-    def read_naver_kr(self, code, company, pages_to_fetch):
+    def read_naver_kr(self, code, company, pages_to_fetch, last_update=None):
         try:
             url = f'http://finance.naver.com/item/sise_day.naver?code={code}'
             opener = req.build_opener()
@@ -148,13 +152,28 @@ class DBUpdater:
             df = pd.DataFrame()
             pages = min(int(last_page), pages_to_fetch)
 
+            is_last = False
+
             for page in range(1, pages + 1):
                 pg_url = '{}&page={}'.format(url, page)
                 response = opener.open(pg_url)
-                df = df.append(pd.read_html(response, header=0)[0])
+                df_tmp = pd.read_html(response, header=0)[0].dropna()
+
+                for idx, row in df_tmp.iterrows():
+                    date = datetime.strptime(row['날짜'], "%Y.%m.%d")
+                    if last_update is not None and date > last_update:
+                        print(f"{date} is new")
+                        df = df.append(row)
+                    else:
+                        is_last = True
+                        break
+
                 tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
-                print('[{}] {} ({}) : {:04d}/{:04d} pages are downloading...'\
+                print('[{}] {} ({}) : {:04d}/{:04d} pages are downloading...' \
                       .format(tmnow, company, code, page, pages), end="\r")
+
+                if is_last:
+                    break
 
             df = df.rename(columns={'날짜':'date', '종가':'close', '전일비':'diff', '시가':'open',
                                     '고가':'high', '저가':'low', '거래량':'volume'})
@@ -167,6 +186,7 @@ class DBUpdater:
             self.calc_diff(df)
         except Exception as e:
             print('Exception occured', str(e))
+            breakpoint()
             return None
 
         return df
@@ -182,9 +202,11 @@ class DBUpdater:
         print('[{}] #{:04d} {} ({}) : {} rows > REPLACE INTO ' + table_name_daily_price + \
               '[OK]'.format(datetime.now().strftime('%Y-%m-%d %H:%M'), idx + 1, company, code, len(df)))
 
-    def check_last_update_price(self):
-        sql = f"SELECT date from {table_name_daily_price}"
-        return
+    def get_last_update_price(self, code):
+        sql = f"SELECT date from {table_name_daily_price} WHERE " + \
+              f"date=(SELECT MAX(date) FROM {table_name_daily_price} WHERE code='{code}') and code={code}"
+        date = pd.read_sql(sql, self.conn)['date'][0]
+        return datetime(date.year, date.month, date.day)
 
     def update_stock_price(self, is_all):
         """ KRX 상장 법인의 주식 시세를 네이버로부터 읽어서 DB에 업데이트 """
@@ -192,9 +214,11 @@ class DBUpdater:
         pages_to_fetch = self.pages_to_fetch_all if is_all else self.pages_to_fetch_daily
 
         company_info = self.get_comp_info()
+
         idx = 0
         for idx, row in company_info.iterrows():
-            df = self.read_naver_kr(row['code'], row['company'], pages_to_fetch)
+            last_update_date = self.get_last_update_price(row['code'])
+            df = self.read_naver_kr(row['code'], row['company'], pages_to_fetch, last_update_date)
             if df is None:
                 continue
             self.replace_price_db(df, idx, row['code'], row['company'])
@@ -355,3 +379,7 @@ class DBUpdater:
               start_day.strftime("%Y-%m-%d") + "'"
 
         return pd.read_sql(sql, self.conn)
+
+dbu = DBUpdater()
+dbu.set_env()
+dbu.update_stock_price(False)
