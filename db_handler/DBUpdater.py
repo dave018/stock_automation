@@ -4,6 +4,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from threading import Timer
 from datetime import datetime, timedelta
+import time
 from urllib import request as req
 from db_handler.DBConnector import DBConnector
 import yfinance as yf
@@ -12,6 +13,7 @@ import io
 import re
 
 from db_handler.db_vars import *
+from asap_logger import *
 
 ''' Vars for Web-scraping '''
 headers = ('User-Agent', 'Mozilla/5.0')
@@ -169,8 +171,7 @@ class DBUpdater:
                         break
 
                 tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
-                print('[{}] {} ({}) : {:04d}/{:04d} pages are downloading...' \
-                      .format(tmnow, company, code, page, pages), end="\r")
+                print(f'[{tmnow}] {company} ({code}) : {page:04d}/{pages:04d} pages are downloading...', end="\r")
 
                 if is_last:
                     break
@@ -186,7 +187,7 @@ class DBUpdater:
             self.calc_diff(df)
         except Exception as e:
             print('Exception occured', str(e))
-            breakpoint()
+            #breakpoint()
             return None
 
         return df
@@ -194,7 +195,7 @@ class DBUpdater:
     def replace_price_db(self, df, idx, code, company):
         with self.conn.cursor() as curs:
             for data in df.itertuples():
-                sql = f"REPLACE INTO " + table_name_daily_price + " VALUES ('{code}', " \
+                sql = f"REPLACE INTO {table_name_daily_price} VALUES ('{code}', " \
                       f"'{data.date}', {data.open}, {data.high}, {data.low}, {data.close}, " \
                       f"{data.diff}, {data.volume})"
                 curs.execute(sql)
@@ -224,6 +225,8 @@ class DBUpdater:
             self.replace_price_db(df, idx, row['code'], row['company'])
 
     def new_update_nas_company_info(self):
+        start = time.time()
+        write_log(get_func_name(), "test log start")
         url = "https://pkgstore.datahub.io/core/nasdaq-listings/nasdaq-listed_csv/data/7665719fb51081ba0bd834fde71ce822/nasdaq-listed_csv.csv"
         s = requests.get(url).content
         companies = pd.read_csv(io.StringIO(s.decode('utf-8')))
@@ -254,6 +257,9 @@ class DBUpdater:
                         f'VALUES ({code}, {name}, {today})')
                 self.conn.commit()
         print(companies)
+        end = time.time()
+        print(f"Elapsed time: {end-start}")
+        write_log(get_func_name(), "test log end")
 
     def tmp_update_nas_company_info(self):
         try:
@@ -294,13 +300,13 @@ class DBUpdater:
             with self.conn.cursor() as curs:
                 for data in df.itertuples():
                     date = datetime(data.Index.year, data.Index.month, data.Index.day).strftime('%Y-%m-%d')
-                    sql = f"REPLACE INTO " + table_name_nas_daily_price + " VALUES ('{code}', " \
+                    sql = f"REPLACE INTO {table_name_nas_daily_price} VALUES('{code}', " \
                           f"'{date}', {data.Open}, {data.High}, {data.Low}, {data.Close}, " \
                           f"{data.Diff}, {data.Volume})"
+                    write_log(get_func_name(), f"Update NAS Price SQL: {sql}")
                     curs.execute(sql)
                 self.conn.commit()
-            print('[{}] {} : rows > REPLACE INTO ' + table_name_nas_daily_price + ' [OK]' \
-                  .format(datetime.now().strftime('%Y-%m-%d %H:%M'),  code))
+            print(f'[{datetime.now}] {code} : rows > REPLACE INTO {table_name_nas_daily_price} [OK]')
         except Exception as e:
             print(e)
 
@@ -318,6 +324,8 @@ class DBUpdater:
             else:
                 price = yf.download(company, progress=False)
 
+            write_log(get_func_name(), f"Download {company} info done from Yahoo Finance")
+
             if len(price) == 0:
                 None
             else:
@@ -332,20 +340,25 @@ class DBUpdater:
         return price_final
 
     def update_nas_stock_price(self, start=None, end=None, is_all=False):
+        write_log(get_func_name(), "Updating NASDAQ price start")
+
         sql = "SELECT * FROM " + table_name_nas_comp_info
+        write_log(get_func_name(), f"SQL: {sql}")
+
         nas_comp_info = pd.read_sql(sql, self.conn)
+        write_log(get_func_name(), f"Get NASDAQ companies's code done")
 
         if is_all:
             start = None
             end = None
 
         for comp_code in nas_comp_info['code']:
-            if comp_code == 'AFAM':
+            if comp_code == 'AFAM': # Exception Code for a company that makes error
                 continue
             df_quotes = self.read_nas_company_quotes(comp_code, start, end)
             self.replace_nas_price_db(df_quotes, comp_code)
 
-        return
+        write_log(get_func_name(), "Updating NASDAQ price end")
 
     def old_update_nas_stock_price(self):
         """ Read historical qutoes of NASDAQ by using yfinance and update it to DB """
@@ -380,6 +393,9 @@ class DBUpdater:
 
         return pd.read_sql(sql, self.conn)
 
-dbu = DBUpdater()
-dbu.set_env()
-dbu.update_stock_price(False)
+#dbu = DBUpdater()
+#dbu.set_env()
+#dbu.update_stock_price(is_all=True)
+#logger_init("update_nas_company_info")
+#dbu.new_update_nas_company_info()
+#dbu.update_nas_stock_price()
