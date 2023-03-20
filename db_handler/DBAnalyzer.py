@@ -71,7 +71,7 @@ class DBAnalyzer:
 
     def set_date(self, date):
         if date is None:
-            one_year_ago = datetime.today() - timedelta(day=365)
+            one_year_ago = datetime.today() - timedelta(days=365)
             date = one_year_ago.strftime('%Y-%m-%d')
             print("date is initialized to '{}'".format(date))
         else:
@@ -171,13 +171,3 @@ class DBAnalyzer:
         plt.show()
 
         return
-
-# Test Code
-'''
-dba = DBAnalyzer()
-logger_init(func_name="Test", is_test=True)
-comps = dba.get_interesting_comps(stock_market='nasdaq')
-for comp in comps:
-    price = dba.get_stock_price_year(comp)
-    breakpoint()
-'''
