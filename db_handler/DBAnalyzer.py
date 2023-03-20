@@ -1,10 +1,12 @@
-from datetime import datetime
-from datetime import timedelta
 import pandas as pd
 import matplotlib.pyplot as plt
-from db_handler.DBConnector import DBConnector
 import re
 import pymysql
+
+from datetime import datetime
+from datetime import timedelta
+from db_handler.DBConnector import DBConnector
+from asap_logger import *
 
 
 class DBAnalyzer:
@@ -18,6 +20,24 @@ class DBAnalyzer:
         cur.execute(sql)
         result = cur.fetchone()
         print("MariaDB's version : {}".format(result))
+
+    def get_interesting_comps(self, stock_market):
+        ret = ""
+        if stock_market == "kospi":
+            file_path = "D:\stock_automation\interesting_comps\kospi.txt"
+        elif stock_market == "nasdaq":
+            file_path = "D:\stock_automation\interesting_comps\\nasdaq.txt"
+        else:
+            write_log(get_func_name(), "Wrong stock_market")
+            file_path = None
+
+        if file_path:
+            with open(file_path, 'r') as f:
+                comps = f.readlines()
+                for idx in range(len(comps)):
+                    comps[idx] = re.sub("\n", "", comps[idx])
+
+        return comps
 
     def get_krx_comp_info(self, conn):
         """ 회사의 종목코드 및 종목명을 dictionary 형태로 리턴 """
@@ -36,7 +56,6 @@ class DBAnalyzer:
         comps = pd.read_sql(sql, conn)
 
         return comps
-
 
     def get_stock_info(self, start='', end='', codes=[]):
         # Get all-time data of selected company
@@ -78,31 +97,57 @@ class DBAnalyzer:
 
         return date
 
-    def get_daily_price(self, code, start_date=None, end_date=None):
+    def get_stock_price(self, code, start_date=None, end_date=datetime.today().strftime('%Y-%m-%d')):
         """ daily_price, nas_daily_price 테이블에서 읽어와서 데이터프레임으로 변환
             1) KRX 종목의 일별 시세를 데이터프레임 형태로 반환
             2) NASDAQ 종목의 일별 시세를 데이터프레임 형태로 반환
         """
+
+        '''
         start_date = self.set_date(start_date)
         end_date = self.set_date(end_date)
+        '''
 
         conn = pymysql.connect(host='localhost', user='root', password='tpghks981!', db='sehwan_inv',
                                charset='utf8')
 
+        # KOSPI는 종목코드가 숫자로 되어있고, NASDAQ은 종목코드가 알파멧으로 되어있다.
         if code.isdigit():
             db = 'daily_price'
         else:
             db = 'nas_daily_price'
 
-        sql = f"SELECT * FROM {db} WHERE code = '{code}'" \
-              f" and date >= '{start_date}' and date <= '{end_date}'"
-
         """ BETWEEN을 쓴 것 보다 <=, >= 사용한 쿼리의 처리 속도가 더 빠르다고 한다."""
-#              f" and date between '{start_date}' and '{end_date}'"
+        sql = f"SELECT * FROM {db} WHERE code = '{code}' and date >= '{start_date}' and date <= '{end_date}'"
+        # f" and date between '{start_date}' and '{end_date}'"
+
         stock_df = pd.read_sql(sql, conn)
         conn.close()
 
         return stock_df
+
+    def get_stock_price_day(self, code):
+        start_date = (datetime.today() - timedelta(days=1))
+        start_date = start_date.strftime('%Y-%m-%d')
+        return self.get_stock_price(code, start_date=start_date)
+
+    def get_stock_price_week(self, code):
+        start_date = datetime.today() - timedelta(weeks=1)
+        start_date = start_date.strftime('%Y-%m-%d')
+        return self.get_stock_price(code, start_date=start_date)
+
+    def get_stock_price_month(self, code):
+        start_date = datetime.today() - timedelta(days=30)
+        start_date = start_date.strftime('%Y-%m-%d')
+        return self.get_stock_price(code, start_date=start_date)
+
+    def get_stock_price_year(self, code):
+        start_date = datetime.today() - timedelta(days=365)
+        start_date = start_date.strftime('%Y-%m-%d')
+        return self.get_stock_price(code, start_date=start_date)
+
+    def get_stock_price_custom(self, code):
+        return
 
     def draw_chart(self, start_date, end_date, codes=[]):
         start = self.set_date(start_date)
@@ -126,3 +171,13 @@ class DBAnalyzer:
         plt.show()
 
         return
+
+# Test Code
+'''
+dba = DBAnalyzer()
+logger_init(func_name="Test", is_test=True)
+comps = dba.get_interesting_comps(stock_market='nasdaq')
+for comp in comps:
+    price = dba.get_stock_price_year(comp)
+    breakpoint()
+'''
