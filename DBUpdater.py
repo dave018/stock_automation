@@ -6,13 +6,13 @@ from threading import Timer
 from datetime import datetime, timedelta
 import time
 from urllib import request as req
-from db_handler.DBConnector import DBConnector
+from DBConnector import DBConnector
 import yfinance as yf
 import requests
 import io
 import re
 
-from db_handler.db_vars import *
+from db_vars import *
 from asap_logger import *
 
 ''' Vars for Web-scraping '''

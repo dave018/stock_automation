@@ -6,7 +6,7 @@ from threading import Timer
 from datetime import datetime, timedelta, date
 import time
 from urllib import request as req
-from db_handler.DBConnector import DBConnector
+from DBConnector import DBConnector
 import yfinance as yf
 import requests
 import io
@@ -14,8 +14,12 @@ import re
 
 from yahoo_fin import stock_info as si
 
-from db_handler.db_vars import *
+from db_vars import *
 from asap_logger import *
+
+from openpyxl import Workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+
 
 ''' Vars for Web-scraping '''
 headers = ('User-Agent', 'Mozilla/5.0')
@@ -380,58 +384,6 @@ class USAUpdater:
         print(f"Elapsed time = {endtime-starttime}")
         return
 
-    def test_2(self):
-        start_time = time.time()
-        sql = f"select * From usa_daily_price where market_date>'2022-03-05'"
-        #df = pd.read_sql(sql, self.conn)
-        sp500_tickers = si.tickers_sp500()
-
-        start_date = date.today()
-        one_year_ago = start_date - timedelta(365)
-        two_year_ago = start_date - timedelta(365 * 2)
-        three_year_ago = start_date - timedelta(365 * 3)
-
-        str_where = "("
-
-        # Column 과 ticker 매칭 확인 후 없는 ticker 추가
-        for idx, ticker in enumerate(sp500_tickers):
-            str_where += f"'{ticker}', "
-        str_where = str_where.strip(', ')
-        str_where += ")"
-        '''
-        sql = f"select * From usa_daily_price where market_date>'{one_year_ago}' AND ticker in {str_where}"
-        df_one = pd.read_sql(sql, self.conn)
-        sql = f"select * From usa_daily_price where market_date>'{two_year_ago}' AND ticker in {str_where}"
-        df_two = pd.read_sql(sql, self.conn)
-        '''
-
-        sql = f"select * From usa_daily_price where market_date>'{three_year_ago}' AND ticker in {str_where}"
-        df_three = pd.read_sql(sql, self.conn)
-        endtime = time.time()
-        print(f"Elapsed time = {endtime-start_time}")
-
-        df_nas = pd.DataFrame()
-        for idx, ticker in enumerate(sp500_tickers):
-            df_tmp = df_three[df_three['ticker']==ticker]
-            df_tmp.index = df_tmp['market_date']
-            df_nas = pd.concat((df_nas, df_tmp['close'].rename(ticker)), axis=1)
-        endtime2 = time.time()
-        print(f"Elapsed time = {endtime2-start_time}")
-
-        corr = df_nas.corr()
-
-        daily_ret = df_nas.pct_change()
-        daily_std = df_nas.std()
-        pct_std = daily_ret.pct_change()
-        annual_ret = daily_ret.mean() * 252
-        daily_cov = daily_ret.cov()
-        annual_cov = daily_cov * 252
-
-        ret_top_30 = annual_ret.nlargest(30)
-        #cov_min_30 = annual_cov.nsmallest(30)
-        breakpoint()
-
-
     def test_sp500(self):
         starttime = time.time()
 
@@ -476,6 +428,80 @@ class USAUpdater:
         breakpoint()
         return
 
+    def test_2(self):
+        print("Helo")
+        start_time = time.time()
+        sql = f"select * From usa_daily_price where market_date>'2022-03-05'"
+        #df = pd.read_sql(sql, self.conn)
+        sp500_tickers = si.tickers_sp500()
+
+        start_date = date.today()
+        one_year_ago = start_date - timedelta(365)
+        three_year_ago = start_date - timedelta(365 * 3)
+        five_year_ago = start_date - timedelta(365 * 5)
+
+        datetime_list = [one_year_ago, three_year_ago, five_year_ago]
+
+        # Column 과 ticker 매칭 확인 후 없는 ticker 추가
+        str_where = "("
+        for idx, ticker in enumerate(sp500_tickers):
+            str_where += f"'{ticker}', "
+        str_where = str_where.strip(', ')
+        str_where += ")"
+        '''
+        sql = f"select * From usa_daily_price where market_date>'{one_year_ago}' AND ticker in {str_where}"
+        sql = f"select * From usa_daily_price where market_date>'{three_year_ago}' AND ticker in {str_where}"
+        sql = f"select * From usa_daily_price where market_date>'{five_year_ago}' AND ticker in {str_where}"
+        sql = f"select * From usa_daily_price where market_date>'{one_year_ago}' AND ticker in {str_where}"
+        '''
+        
+        wb = Workbook()
+        for idx, period in enumerate(datetime_list):
+            sql = f"select * From usa_daily_price where market_date>'{period}' AND ticker in {str_where}"
+            df_result = pd.read_sql(sql, self.conn)
+            endtime = time.time()
+            print(f"Elapsed time = {endtime-start_time}")
+
+            df_nas = pd.DataFrame()
+
+            for idx, ticker in enumerate(sp500_tickers):
+                df_tmp = df_result[df_result['ticker']==ticker]
+                df_tmp.index = df_tmp['market_date']
+                df_nas = pd.concat((df_nas, df_tmp['close'].rename(ticker)), axis=1)
+            endtime2 = time.time()
+            print(f"Elapsed time = {endtime2-start_time}")
+
+            corr = df_nas.corr()
+
+            daily_ret = df_nas.pct_change()
+            daily_std = df_nas.std()
+            pct_std = daily_ret.pct_change()
+            annual_ret = daily_ret.mean() * 252
+            daily_cov = daily_ret.cov()
+            annual_cov = daily_cov * 252
+
+            ret_top_30 = annual_ret.nlargest(30)
+            #cov_min_30 = annual_cov.nsmallest(30)
+
+            sheet = wb.create_sheet(f"{period}", idx)
+
+            for r in dataframe_to_rows(corr, index=False, header=True):
+                sheet.append(r)
+            
+        wb.save("corr_sp500.xlsx")
+
+        return
+
+    def test_3(self):    
+        wb = Workbook()
+        sheet = wb.active
+        sheet.title = "Sheet1"
+        sheet['A1'] = "Hello"
+
+        wb.save("test_file.xlsx")
+        return
+
+
 '''
 uu = USAUpdater()
 #uu.update_usa_comp_info()
@@ -483,7 +509,8 @@ uu = USAUpdater()
 start_time = datetime.today().strftime("%Y-%m-%d")
 uu.test_2()
 #uu.test_sp500()
-
+'''
+'''
 uu.update_sp500_price()
 uu.update_nas_price(start_time=start_time)
 uu.update_other_price(start_time=start_time)
