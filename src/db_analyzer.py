@@ -4,7 +4,7 @@ import re
 import pymysql
 
 from datetime import timedelta
-from DBConnector import DBConnector
+from src.db_connector import DBConnector
 from asap_logger import *
 
 
