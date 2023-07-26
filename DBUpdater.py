@@ -2,15 +2,8 @@ import json
 import pymysql
 import pandas as pd
 from bs4 import BeautifulSoup
-from threading import Timer
-from datetime import datetime, timedelta
-import time
+from datetime import timedelta
 from urllib import request as req
-from DBConnector import DBConnector
-import yfinance as yf
-import requests
-import io
-import re
 
 from db_vars import *
 from asap_logger import *
@@ -140,7 +133,6 @@ class DBUpdater:
         l = len(df_price)
         for i in range(l - 1):
             df_price['diff'].iloc[i] = df_price['close'].iloc[i] - df_price['close'].iloc[i + 1]
-        return
 
     def read_naver_kr(self, code, company, pages_to_fetch, last_update=None):
         try:
@@ -215,7 +207,6 @@ class DBUpdater:
 
         company_info = self.get_comp_info()
 
-        idx = 0
         for idx, row in company_info.iterrows():
             last_update_date = self.get_last_update_price(row['code'])
             df = self.read_naver_kr(row['code'], row['company'], pages_to_fetch, last_update_date)

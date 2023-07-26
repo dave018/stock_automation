@@ -60,8 +60,6 @@ class DBConnector:
                 print(e)
                 print("Please check SQL")
 
-        return
-
     def tmp_discon(self):
         self.conn.close()
 

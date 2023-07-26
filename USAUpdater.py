@@ -1,24 +1,14 @@
-import json
 import pymysql
 import pandas as pd
-from bs4 import BeautifulSoup
-from threading import Timer
-from datetime import datetime, timedelta, date
 import time
-from urllib import request as req
-from DBConnector import DBConnector
-import yfinance as yf
-import requests
-import io
-import re
 
+from bs4 import BeautifulSoup
+from datetime import timedelta
+from urllib import request as req
 from yahoo_fin import stock_info as si
 
 from db_vars import *
 from asap_logger import *
-
-from openpyxl import Workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
 
 
 ''' Vars for Web-scraping '''
@@ -31,9 +21,6 @@ class USAUpdater:
                                     db='sehwan_inv', charset='utf8')
         self.cur = self.conn.cursor()
         self.dict_code_company = dict()
-        return
-
-    def __del__(self):
         return
 
     def update_usa_comp_info(self):
@@ -89,10 +76,7 @@ class USAUpdater:
         self.conn.commit()
 
     def get_all_nas_ticker(self):
-        nas_yinfo = si.tickers_nasdaq()
-
         url = f'https://www.nasdaq.com/market-activity/stocks/screener?exchange=nasdaq'
-        df = pd.read_html(url, header=0)
         opener = req.build_opener()
         opener.addheaders = [headers]
         response = opener.open(url)
@@ -154,8 +138,6 @@ class USAUpdater:
                 continue
 
             price.index.name = 'market_date'
-            date = price.index.strftime("%Y-%m-%d")
-            date1 = date[0]
             price['today_diff'] = price['close'] - price['open']
             price['yesterday_diff'] = (price.close - price.close.shift()).fillna(0)
             price = price.dropna()
@@ -336,7 +318,6 @@ class USAUpdater:
             self.conn.commit()
         endtime = time.time()
         print(f"Elapsed time = {endtime-starttime}")
-        return
 
     def update_sp500_price(self):
         starttime = time.time()
@@ -382,136 +363,3 @@ class USAUpdater:
 
         endtime = time.time()
         print(f"Elapsed time = {endtime-starttime}")
-        return
-
-    def test_sp500(self):
-        starttime = time.time()
-
-        sp500_tickers = si.tickers_sp500(include_company_data=True)
-        sp500_tickers = sp500_tickers.sort_values(by=['Symbol'])
-        sp500_tickers_2 = si.tickers_sp500()
-
-        df_nas = pd.DataFrame()
-        df_nas.index.name = 'market_date'
-
-        df_nas_2 = pd.DataFrame()
-
-        count = 0
-        for ticker in sp500_tickers_2:
-            print(f"count={count} / ticker={ticker}")
-            sql = f"SELECT * FROM usa_daily_price where ticker='{ticker}'"
-            price_df = pd.read_sql(sql, self.conn)
-            price_df.index = price_df['market_date']
-            if len(price_df['ticker']) <= 0:
-                continue
-
-            df_nas_2 = pd.concat((df_nas_2, price_df['close'].rename(ticker)), axis=1)
-            count += 1
-
-        corr = df_nas_2.corr(min_periods=1)
-        endtime = time.time()
-        print(f"Elapsed time = {endtime-starttime}")
-        '''
-        sql = "SELECT * FROM usa_daily_price where ticker='AAPL'"
-        aapl_price = pd.read_sql(sql, self.conn)
-        sql = "SELECT * FROM usa_daily_price where ticker='EVLO'"
-        evlo_price = pd.read_sql(sql, self.conn)
-        aapl_price.index = aapl_price['market_date']
-        evlo_price.index = evlo_price['market_date']
-
-        df_nas = pd.DataFrame(columns=['AAPL'])
-        df_nas.index.name = 'market_date'
-        df_nas['AAPL'] = aapl_price['open']
-        df_nas.index = aapl_price['market_date']
-        df_nas['EVLO'] = evlo_price['open']
-        '''
-        breakpoint()
-        return
-
-    def test_2(self):
-        print("Helo")
-        start_time = time.time()
-        sql = f"select * From usa_daily_price where market_date>'2022-03-05'"
-        #df = pd.read_sql(sql, self.conn)
-        sp500_tickers = si.tickers_sp500()
-
-        start_date = date.today()
-        one_year_ago = start_date - timedelta(365)
-        three_year_ago = start_date - timedelta(365 * 3)
-        five_year_ago = start_date - timedelta(365 * 5)
-
-        datetime_list = [one_year_ago, three_year_ago, five_year_ago]
-
-        # Column 과 ticker 매칭 확인 후 없는 ticker 추가
-        str_where = "("
-        for idx, ticker in enumerate(sp500_tickers):
-            str_where += f"'{ticker}', "
-        str_where = str_where.strip(', ')
-        str_where += ")"
-        '''
-        sql = f"select * From usa_daily_price where market_date>'{one_year_ago}' AND ticker in {str_where}"
-        sql = f"select * From usa_daily_price where market_date>'{three_year_ago}' AND ticker in {str_where}"
-        sql = f"select * From usa_daily_price where market_date>'{five_year_ago}' AND ticker in {str_where}"
-        sql = f"select * From usa_daily_price where market_date>'{one_year_ago}' AND ticker in {str_where}"
-        '''
-        
-        wb = Workbook()
-        for idx, period in enumerate(datetime_list):
-            sql = f"select * From usa_daily_price where market_date>'{period}' AND ticker in {str_where}"
-            df_result = pd.read_sql(sql, self.conn)
-            endtime = time.time()
-            print(f"Elapsed time = {endtime-start_time}")
-
-            df_nas = pd.DataFrame()
-
-            for idx, ticker in enumerate(sp500_tickers):
-                df_tmp = df_result[df_result['ticker']==ticker]
-                df_tmp.index = df_tmp['market_date']
-                df_nas = pd.concat((df_nas, df_tmp['close'].rename(ticker)), axis=1)
-            endtime2 = time.time()
-            print(f"Elapsed time = {endtime2-start_time}")
-
-            corr = df_nas.corr()
-
-            daily_ret = df_nas.pct_change()
-            daily_std = df_nas.std()
-            pct_std = daily_ret.pct_change()
-            annual_ret = daily_ret.mean() * 252
-            daily_cov = daily_ret.cov()
-            annual_cov = daily_cov * 252
-
-            ret_top_30 = annual_ret.nlargest(30)
-            #cov_min_30 = annual_cov.nsmallest(30)
-
-            sheet = wb.create_sheet(f"{period}", idx)
-
-            for r in dataframe_to_rows(corr, index=False, header=True):
-                sheet.append(r)
-            
-        wb.save("corr_sp500.xlsx")
-
-        return
-
-    def test_3(self):    
-        wb = Workbook()
-        sheet = wb.active
-        sheet.title = "Sheet1"
-        sheet['A1'] = "Hello"
-
-        wb.save("test_file.xlsx")
-        return
-
-
-'''
-uu = USAUpdater()
-#uu.update_usa_comp_info()
-#uu.update_usa_price()
-start_time = datetime.today().strftime("%Y-%m-%d")
-uu.test_2()
-#uu.test_sp500()
-'''
-'''
-uu.update_sp500_price()
-uu.update_nas_price(start_time=start_time)
-uu.update_other_price(start_time=start_time)
-'''

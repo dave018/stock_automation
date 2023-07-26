@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import re
 import pymysql
 
-from datetime import datetime
 from datetime import timedelta
 from DBConnector import DBConnector
 from asap_logger import *
@@ -13,7 +12,6 @@ class DBAnalyzer:
 
     def __init__(self):
         self.stock_list = []
-        return
 
     def test_conn(self, cur):
         sql = 'SELECT VERSION();'
@@ -22,7 +20,6 @@ class DBAnalyzer:
         print("MariaDB's version : {}".format(result))
 
     def get_interesting_comps(self, stock_market):
-        ret = ""
         if stock_market == "kospi":
             file_path = "D:\stock_automation\interesting_comps\kospi.txt"
         elif stock_market == "nasdaq":
@@ -41,7 +38,6 @@ class DBAnalyzer:
 
     def get_krx_comp_info(self, conn):
         """ 회사의 종목코드 및 종목명을 dictionary 형태로 리턴 """
-        comps = dict()
         sql = 'SELECT * FROM company_info'
 
         comps = pd.read_sql(sql, conn)
@@ -50,7 +46,6 @@ class DBAnalyzer:
 
     def get_nas_comp_info(self, conn):
         """ 회사의 종목코드 및 종목명을 dictionary 형태로 리턴 """
-        comps = dict()
         sql = 'SELECT * FROM nas_company_info'
 
         comps = pd.read_sql(sql, conn)
@@ -102,12 +97,6 @@ class DBAnalyzer:
             1) KRX 종목의 일별 시세를 데이터프레임 형태로 반환
             2) NASDAQ 종목의 일별 시세를 데이터프레임 형태로 반환
         """
-
-        '''
-        start_date = self.set_date(start_date)
-        end_date = self.set_date(end_date)
-        '''
-
         conn = pymysql.connect(host='localhost', user='root', password='tpghks981!', db='sehwan_inv',
                                charset='utf8')
 
@@ -147,7 +136,7 @@ class DBAnalyzer:
         return self.get_stock_price(code, start_date=start_date)
 
     def get_stock_price_custom(self, code):
-        return
+        pass
 
     def draw_chart(self, start_date, end_date, codes=[]):
         start = self.set_date(start_date)
@@ -169,5 +158,3 @@ class DBAnalyzer:
             ax.plot(subset['date'], subset['close'])
 
         plt.show()
-
-        return
