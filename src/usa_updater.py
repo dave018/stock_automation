@@ -21,7 +21,6 @@ class USAUpdater:
                                     db='sehwan_inv', charset='utf8')
         self.cur = self.conn.cursor()
         self.dict_code_company = dict()
-        return
 
     def update_usa_comp_info(self):
         self.update_nas_comp_info()
@@ -86,13 +85,11 @@ class USAUpdater:
         for row in soup.find_all('tbody')[0].find_all('tr'):
             ticker = row.find_all('td')[0].text.strip()
             tickers.append(ticker)
-            return
 
     def update_usa_price(self):
         start_time = datetime.today().strftime("%Y-%m-%d")
         self._update_usa_price(start_time=start_time, market='nasdaq')
         self._update_usa_price(start_time=start_time, market='other')
-        return
 
     def _update_usa_price(self, start_date=None, end_date=None, start_time="", market=None):
         if not market:
