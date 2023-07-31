@@ -27,51 +27,45 @@ class USAUpdater:
         self.update_other_comp_info()
 
     def update_nas_comp_info(self):
+        sql = f"SELECT ticker FROM {TABLE_NAME_USA_COMP_INFO}"
+        self.cur.execute(sql)
+        result = self.cur.fetchall()
+        existed_companies = set([row[0] for row in result])
+
         today = datetime.today().strftime("%Y-%m-%d")
-        nas_tickers = stock_info.tickers_nasdaq()
+        current_nasdaq_tickers = set(stock_info.tickers_nasdaq())
 
-        for ticker in nas_tickers:
-            sql = f"SELECT max(last_update) FROM {TABLE_NAME_USA_COMP_INFO} WHERE ticker='{ticker}'"
+        new_tickers = current_nasdaq_tickers - existed_companies
+
+        for new_ticker in new_tickers:
+            print(f"{new_ticker} is a new company")
+            sql = f"INSERT INTO {TABLE_NAME_USA_COMP_INFO}(ticker, market, last_update) " \
+                  f"VALUES('{new_ticker}', 'nasdaq', '{today}')"
             self.cur.execute(sql)
-            result = self.cur.fetchone()
-            sql = ''
-            if result[0] is None:
-                print(f"{ticker} isn't in DB")
-                sql = f"INSERT INTO {TABLE_NAME_USA_COMP_INFO}(ticker, market, last_update) " \
-                      f"VALUES('{ticker}', 'nasdaq', '{today}')"
-            elif result[0].strftime('%Y-%m-%d') < today:
-                print(f"{ticker} is in DB")
-                sql = f"UPDATE {TABLE_NAME_USA_COMP_INFO} SET last_update='{today}' WHERE ticker='{ticker}'"
-            else:
-                print(f"{ticker} already exists")
 
-            if len(sql) > 0:
-                self.cur.execute(sql)
-
+        sql = f"UPDATE {TABLE_NAME_USA_COMP_INFO} SET last_update='{today}' WHERE market='nasdaq'"
+        self.cur.execute(sql)
         self.conn.commit()
 
     def update_other_comp_info(self):
+        sql = f"SELECT ticker FROM {TABLE_NAME_USA_COMP_INFO}"
+        self.cur.execute(sql)
+        result = self.cur.fetchall()
+        existed_companies = set([row[0] for row in result])
+
         today = datetime.today().strftime("%Y-%m-%d")
-        other_tickers = stock_info.tickers_other()
+        current_other_tickers = set(stock_info.tickers_other())
 
-        for ticker in other_tickers:
-            sql = f"SELECT max(last_update) FROM {TABLE_NAME_USA_COMP_INFO} WHERE ticker='{ticker}'"
+        new_tickers = current_other_tickers - existed_companies
+
+        for new_ticker in new_tickers:
+            print(f"{new_ticker} is a new company")
+            sql = f"INSERT INTO {TABLE_NAME_USA_COMP_INFO}(ticker, market, last_update) " \
+                  f"VALUES('{new_ticker}', 'other', '{today}')"
             self.cur.execute(sql)
-            result = self.cur.fetchone()
-            sql = ''
-            if result[0] is None:
-                print(f"{ticker} isn't in DB")
-                sql = f"INSERT INTO {TABLE_NAME_USA_COMP_INFO}(ticker, market, last_update) " \
-                      f"VALUES('{ticker}', 'other', '{today}')"
-            elif result[0].strftime('%Y-%m-%d') < today:
-                print(f"{ticker} is in DB")
-                sql = f"UPDATE {TABLE_NAME_USA_COMP_INFO} SET last_update='{today}' WHERE ticker='{ticker}'"
-            else:
-                print(f"{ticker} already exists")
 
-            if len(sql) > 0:
-                self.cur.execute(sql)
-
+        sql = f"UPDATE {TABLE_NAME_USA_COMP_INFO} SET last_update='{today}' WHERE market='other'"
+        self.cur.execute(sql)
         self.conn.commit()
 
     def get_all_nas_ticker(self):
