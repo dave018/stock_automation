@@ -5,7 +5,7 @@ import time
 from bs4 import BeautifulSoup
 from datetime import timedelta
 from urllib import request as req
-from yahoo_fin import stock_info as si
+from yahoo_fin import stock_info
 
 from db_vars import *
 from asap_logger import *
@@ -28,7 +28,7 @@ class USAUpdater:
 
     def update_nas_comp_info(self):
         today = datetime.today().strftime("%Y-%m-%d")
-        nas_tickers = si.tickers_nasdaq()
+        nas_tickers = stock_info.tickers_nasdaq()
 
         for ticker in nas_tickers:
             sql = f"SELECT max(last_update) FROM {TABLE_NAME_USA_COMP_INFO} WHERE ticker='{ticker}'"
@@ -52,7 +52,7 @@ class USAUpdater:
 
     def update_other_comp_info(self):
         today = datetime.today().strftime("%Y-%m-%d")
-        other_tickers = si.tickers_other()
+        other_tickers = stock_info.tickers_other()
 
         for ticker in other_tickers:
             sql = f"SELECT max(last_update) FROM {TABLE_NAME_USA_COMP_INFO} WHERE ticker='{ticker}'"
@@ -126,7 +126,7 @@ class USAUpdater:
                     start_date = last_update + timedelta(1)
 
             try:
-                price = si.get_data(ticker=tic, start_date=start_date, end_date=end_date)
+                price = stock_info.get_data(ticker=tic, start_date=start_date, end_date=end_date)
             except Exception as e:
                 print(e)
                 continue
@@ -199,7 +199,7 @@ class USAUpdater:
                     start_date = last_update + timedelta(1)
 
             try:
-                price = si.get_data(ticker=tic, start_date=start_date, end_date=end_date)
+                price = stock_info.get_data(ticker=tic, start_date=start_date, end_date=end_date)
             except Exception as e:
                 print(e)
                 continue
@@ -274,7 +274,7 @@ class USAUpdater:
                     start_date = last_update + timedelta(1)
 
             try:
-                price = si.get_data(ticker=tic, start_date=start_date, end_date=end_date)
+                price = stock_info.get_data(ticker=tic, start_date=start_date, end_date=end_date)
             except Exception as e:
                 print(e)
                 continue
@@ -321,7 +321,7 @@ class USAUpdater:
 
         sql = f"SHOW FULL COLUMNS from sp500_indv_price"
         cols = pd.read_sql(sql, self.conn)
-        sp500_tickers = si.tickers_sp500()
+        sp500_tickers = stock_info.tickers_sp500()
 
         # Column 과 ticker 매칭 확인 후 없는 ticker 추가
         for idx, ticker in enumerate(sp500_tickers):
