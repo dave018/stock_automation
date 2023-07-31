@@ -67,23 +67,23 @@ class USAUpdater:
         starttime = time.time()
         ###
         self.cur.execute(sql)
-        tickers = self.cur.fetchall()
+        result = self.cur.fetchall()
+        tickers = [ticker[0] for ticker in result]
 
         count = 0
 
         for ticker in tickers:
-            tic = ticker[0]
             sql = f"SELECT EXISTS(SELECT 1 FROM {TABLE_NAME_USA_DAILY_PRICE} " \
-                  f"WHERE ticker='{tic}' and update_date='{start_time}') as cnt"
+                  f"WHERE ticker='{ticker}' and update_date='{start_time}') as cnt"
             self.cur.execute(sql)
             result = self.cur.fetchone()
 
             if result[0] != 0:
-                print(f"Update {tic}'s price already done at {start_time}")
+                print(f"Update {ticker}'s price already done at {start_time}")
                 continue
 
             if start_date is None:
-                sql = f"SELECT max(market_date) FROM {TABLE_NAME_USA_DAILY_PRICE} WHERE ticker='{tic}'"
+                sql = f"SELECT max(market_date) FROM {TABLE_NAME_USA_DAILY_PRICE} WHERE ticker='{ticker}'"
                 self.cur.execute(sql)
                 last_update = self.cur.fetchone()[0]
                 if last_update is None:
@@ -92,7 +92,7 @@ class USAUpdater:
                     start_date = last_update + timedelta(1)
 
             try:
-                price = stock_info.get_data(ticker=tic, start_date=start_date, end_date=end_date)
+                price = stock_info.get_data(ticker=ticker, start_date=start_date, end_date=end_date)
             except Exception as e:
                 print(e)
                 continue
@@ -108,15 +108,15 @@ class USAUpdater:
             for idx, daily_price in price.iterrows():
                 market_time = idx.strftime('%Y-%m-%d')
                 if last_update and idx <= last_update:
-                    sql = f"UPDATE {TABLE_NAME_USA_DAILY_PRICE} SET ticker='{tic}', market_date='{market_time}', " \
+                    sql = f"UPDATE {TABLE_NAME_USA_DAILY_PRICE} SET ticker='{ticker}', market_date='{market_time}', " \
                           f"update_date='{start_time}', market='{market}', open='{daily_price['open']}', " \
                           f"high='{daily_price['high']}', low='{daily_price['low']}', close='{daily_price['close']}', " \
                           f"today_diff='{daily_price['today_diff']}', yesterday_diff='{daily_price['yesterday_diff']}', " \
-                          f"volume='{daily_price['volume']}' WHERE ticker='{tic}' and market_date='{market_time}'"
+                          f"volume='{daily_price['volume']}' WHERE ticker='{ticker}' and market_date='{market_time}'"
                 else:
                     sql = f"INSERT INTO {TABLE_NAME_USA_DAILY_PRICE}(ticker, market_date, update_date, market, open, " \
                           f"high, low, close, today_diff, yesterday_diff, volume) " \
-                          f"VALUES('{tic}', '{market_time}', '{start_time}', '{market}', '{daily_price['open']}', " \
+                          f"VALUES('{ticker}', '{market_time}', '{start_time}', '{market}', '{daily_price['open']}', " \
                           f"'{daily_price['high']}', '{daily_price['low']}', '{daily_price['close']}', " \
                           f"'{daily_price['today_diff']}', '{daily_price['yesterday_diff']}', '{daily_price['volume']}')"
 
@@ -128,7 +128,7 @@ class USAUpdater:
                     print(f"SQL: {sql}")
                     print(e)
             count += 1
-            print(f"Ticker: {tic}, Count: {count} is done")
+            print(f"Ticker: {ticker}, Count: {count} is done")
             self.conn.commit()
         endtime = time.time()
         print(f"Elapsed time = {endtime-starttime}")
