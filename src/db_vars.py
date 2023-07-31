@@ -1,0 +1,10 @@
+INV_HOST = 'localhost'
+INV_USER = 'root'
+INV_PW = 'tpghks981!'
+INV_DB = 'sehwan_inv'
+INV_CHARSET = 'utf8'
+
+TABLE_NAME_COMP_INFO = 'company_info'
+TABLE_NAME_DAILY_PRICE = 'daily_price'
+TABLE_NAME_USA_COMP_INFO = 'usa_company_info'
+TABLE_NAME_USA_DAILY_PRICE = 'usa_daily_price'
