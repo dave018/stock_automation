@@ -23,10 +23,12 @@ class USAUpdater:
         self.dict_code_company = dict()
 
     def update_usa_comp_info(self):
-        self.update_nas_comp_info()
-        self.update_other_comp_info()
+        markets = ['nasdaq', 'other']
 
-    def update_nas_comp_info(self):
+        for market in markets:
+            self.__update_usa_comp_info(market)
+
+    def __update_usa_comp_info(self, market):
         sql = f"SELECT ticker FROM {TABLE_NAME_USA_COMP_INFO}"
         self.cur.execute(sql)
         result = self.cur.fetchall()
@@ -37,34 +39,16 @@ class USAUpdater:
 
         new_tickers = current_nasdaq_tickers - existed_companies
 
-        for new_ticker in new_tickers:
-            print(f"{new_ticker} is a new company")
-            sql = f"INSERT INTO {TABLE_NAME_USA_COMP_INFO}(ticker, market, last_update) " \
-                  f"VALUES('{new_ticker}', 'nasdaq', '{today}')"
-            self.cur.execute(sql)
+        if not new_tickers:
+            print(f"There is not new tickers in {market}")
+        else:
+            for new_ticker in new_tickers:
+                print(f"{new_ticker} is a new company")
+                sql = f"INSERT INTO {TABLE_NAME_USA_COMP_INFO}(ticker, market, last_update) " \
+                      f"VALUES('{new_ticker}', '{market}', '{today}')"
+                self.cur.execute(sql)
 
-        sql = f"UPDATE {TABLE_NAME_USA_COMP_INFO} SET last_update='{today}' WHERE market='nasdaq'"
-        self.cur.execute(sql)
-        self.conn.commit()
-
-    def update_other_comp_info(self):
-        sql = f"SELECT ticker FROM {TABLE_NAME_USA_COMP_INFO}"
-        self.cur.execute(sql)
-        result = self.cur.fetchall()
-        existed_companies = set([row[0] for row in result])
-
-        today = datetime.today().strftime("%Y-%m-%d")
-        current_other_tickers = set(stock_info.tickers_other())
-
-        new_tickers = current_other_tickers - existed_companies
-
-        for new_ticker in new_tickers:
-            print(f"{new_ticker} is a new company")
-            sql = f"INSERT INTO {TABLE_NAME_USA_COMP_INFO}(ticker, market, last_update) " \
-                  f"VALUES('{new_ticker}', 'other', '{today}')"
-            self.cur.execute(sql)
-
-        sql = f"UPDATE {TABLE_NAME_USA_COMP_INFO} SET last_update='{today}' WHERE market='other'"
+        sql = f"UPDATE {TABLE_NAME_USA_COMP_INFO} SET last_update='{today}' WHERE market='{market}'"
         self.cur.execute(sql)
         self.conn.commit()
 
