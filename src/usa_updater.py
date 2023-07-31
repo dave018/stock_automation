@@ -52,18 +52,6 @@ class USAUpdater:
         self.cur.execute(sql)
         self.conn.commit()
 
-    def get_all_nas_ticker(self):
-        url = f'https://www.nasdaq.com/market-activity/stocks/screener?exchange=nasdaq'
-        opener = req.build_opener()
-        opener.addheaders = [headers]
-        response = opener.open(url)
-        soup = BeautifulSoup(response.content, 'html.parser')
-
-        tickers = []
-        for row in soup.find_all('tbody')[0].find_all('tr'):
-            ticker = row.find_all('td')[0].text.strip()
-            tickers.append(ticker)
-
     def update_usa_price(self):
         start_time = datetime.today().strftime("%Y-%m-%d")
         self._update_usa_price(start_time=start_time, market='nasdaq')
