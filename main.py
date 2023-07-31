@@ -32,7 +32,6 @@ if __name__ == '__main__':
                 usau.update_usa_comp_info()
                 logger_init("update_nas_stock_price")
                 usau.update_usa_price()
-    else:
         sys.exit()
 
     while True:
