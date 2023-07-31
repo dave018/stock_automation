@@ -45,7 +45,7 @@ class DBUpdater:
         cursor = self.conn.cursor()
         sql = "CREATE TABLE IF NOT EXISTS "
         if table_name == "daily_price":
-            sql += table_name_daily_price + """
+            sql += TABLE_NAME_DAILY_PRICE + """
                 (
                 code VARCHAR(20),
                 date DATE,
@@ -58,7 +58,7 @@ class DBUpdater:
                 PRIMARY KEY (code, date))
             """
         elif table_name == "company_info":
-            sql += table_name_comp_info + """
+            sql += TABLE_NAME_COMP_INFO + """
                 (
                 code VARCHAR(20),
                 company VARCHAR(40),
@@ -83,14 +83,14 @@ class DBUpdater:
 
     def update_comp_info(self):
         """ 종목코드를 company_info 테이블에 업데이트 한 후, 딕셔너리(self.codes)에 저장 """
-        sql = 'SELECT * FROM ' + table_name_comp_info
+        sql = 'SELECT * FROM ' + TABLE_NAME_COMP_INFO
         df = pd.read_sql(sql, self.conn)
         for idx in range(len(df)):
             self.codes[df['code'].values[idx]] = df['company'].values[idx]
 
         """ company_info 테이블의 'last_update' col 업데이트 """
         with self.conn.cursor() as curs: # 왜 with문을 쓰나?
-            sql = 'SELECT max(last_update) FROM ' + table_name_comp_info
+            sql = 'SELECT max(last_update) FROM ' + TABLE_NAME_COMP_INFO
             curs.execute(sql)
             result = curs.fetchone()
             today = datetime.today().strftime('%Y-%m-%d')
@@ -101,12 +101,12 @@ class DBUpdater:
                     code = krx.code.values[idx]
                     company = krx.company.values[idx]
                     """ f-string으로, 문자열 포매팅 방법이다. python v3.6 이후부터 사용 가능하며, str.format보다 최근 """
-                    sql = f"REPLACE INTO " + table_name_comp_info + " (code, company, last_update) " \
+                    sql = f"REPLACE INTO " + TABLE_NAME_COMP_INFO + " (code, company, last_update) " \
                           f"VALUES ('{code}', '{company}', '{today}')"
                     curs.execute(sql)
                     self.codes[code] = company
                     tmnow = datetime.now().strftime('%Y-%m-%d %H:%M')
-                    print(f'[{tmnow}] #{idx+1:04d} REPLACE INTO ' + table_name_comp_info + \
+                    print(f'[{tmnow}] #{idx+1:04d} REPLACE INTO ' + TABLE_NAME_COMP_INFO + \
                           f'VALUES ({code}, {company}, {today})')
                 self.conn.commit()
                 print('')
@@ -114,19 +114,19 @@ class DBUpdater:
         return
 
     def get_comp_info(self):
-        sql = "SELECT * FROM " + table_name_comp_info
+        sql = "SELECT * FROM " + TABLE_NAME_COMP_INFO
         return pd.read_sql(sql, self.conn)
 
     def get_daily_price(self, code, day):
         start_day = datetime.today() - timedelta(days=day)
 
-        sql = "SELECT * FROM " + table_name_daily_price + " WHERE code ='" + code + "' AND date > '" + \
+        sql = "SELECT * FROM " + TABLE_NAME_DAILY_PRICE + " WHERE code ='" + code + "' AND date > '" + \
               start_day.strftime("%Y-%m-%d") + "'"
 
         return pd.read_sql(sql, self.conn)
 
     def get_daily_price_all(self):
-        sql = "SELECT * FROM " + table_name_daily_price
+        sql = "SELECT * FROM " + TABLE_NAME_DAILY_PRICE
         return pd.read_sql(sql, self.conn)
 
     def calc_diff(self, df_price):
@@ -186,17 +186,17 @@ class DBUpdater:
     def replace_price_db(self, df, idx, code, company):
         with self.conn.cursor() as curs:
             for data in df.itertuples():
-                sql = f"REPLACE INTO {table_name_daily_price} VALUES ('{code}', " \
+                sql = f"REPLACE INTO {TABLE_NAME_DAILY_PRICE} VALUES ('{code}', " \
                       f"'{data.date}', {data.open}, {data.high}, {data.low}, {data.close}, " \
                       f"{data.diff}, {data.volume})"
                 curs.execute(sql)
             self.conn.commit()
-        print('[{}] #{:04d} {} ({}) : {} rows > REPLACE INTO ' + table_name_daily_price + \
+        print('[{}] #{:04d} {} ({}) : {} rows > REPLACE INTO ' + TABLE_NAME_DAILY_PRICE + \
               '[OK]'.format(datetime.now().strftime('%Y-%m-%d %H:%M'), idx + 1, company, code, len(df)))
 
     def get_last_update_price(self, code):
-        sql = f"SELECT date from {table_name_daily_price} WHERE " + \
-              f"date=(SELECT MAX(date) FROM {table_name_daily_price} WHERE code='{code}') and code={code}"
+        sql = f"SELECT date from {TABLE_NAME_DAILY_PRICE} WHERE " + \
+              f"date=(SELECT MAX(date) FROM {TABLE_NAME_DAILY_PRICE} WHERE code='{code}') and code={code}"
         date = pd.read_sql(sql, self.conn)['date'][0]
         return datetime(date.year, date.month, date.day)
 
