@@ -5,7 +5,7 @@ import time
 from bs4 import BeautifulSoup
 from datetime import timedelta
 from urllib import request as req
-from yahoo_fin import stock_info as si
+from yahoo_fin import stock_info
 
 from db_vars import *
 from asap_logger import *
@@ -21,78 +21,41 @@ class USAUpdater:
                                     db='sehwan_inv', charset='utf8')
         self.cur = self.conn.cursor()
         self.dict_code_company = dict()
-        return
 
     def update_usa_comp_info(self):
-        self.update_nas_comp_info()
-        self.update_other_comp_info()
+        markets = ['nasdaq', 'other']
 
-    def update_nas_comp_info(self):
+        for market in markets:
+            self.__update_usa_comp_info(market)
+
+    def __update_usa_comp_info(self, market):
+        sql = f"SELECT ticker FROM {TABLE_NAME_USA_COMP_INFO}"
+        self.cur.execute(sql)
+        result = self.cur.fetchall()
+        existed_companies = set([row[0] for row in result])
+
         today = datetime.today().strftime("%Y-%m-%d")
-        nas_tickers = si.tickers_nasdaq()
+        current_nasdaq_tickers = set(stock_info.tickers_nasdaq())
 
-        for ticker in nas_tickers:
-            sql = f"SELECT max(last_update) FROM {TABLE_NAME_USA_COMP_INFO} WHERE ticker='{ticker}'"
-            self.cur.execute(sql)
-            result = self.cur.fetchone()
-            sql = ''
-            if result[0] is None:
-                print(f"{ticker} isn't in DB")
+        new_tickers = current_nasdaq_tickers - existed_companies
+
+        if not new_tickers:
+            print(f"There is not new tickers in {market}")
+        else:
+            for new_ticker in new_tickers:
+                print(f"{new_ticker} is a new company")
                 sql = f"INSERT INTO {TABLE_NAME_USA_COMP_INFO}(ticker, market, last_update) " \
-                      f"VALUES('{ticker}', 'nasdaq', '{today}')"
-            elif result[0].strftime('%Y-%m-%d') < today:
-                print(f"{ticker} is in DB")
-                sql = f"UPDATE {TABLE_NAME_USA_COMP_INFO} SET last_update='{today}' WHERE ticker='{ticker}'"
-            else:
-                print(f"{ticker} already exists")
-
-            if len(sql) > 0:
+                      f"VALUES('{new_ticker}', '{market}', '{today}')"
                 self.cur.execute(sql)
 
+        sql = f"UPDATE {TABLE_NAME_USA_COMP_INFO} SET last_update='{today}' WHERE market='{market}'"
+        self.cur.execute(sql)
         self.conn.commit()
-
-    def update_other_comp_info(self):
-        today = datetime.today().strftime("%Y-%m-%d")
-        other_tickers = si.tickers_other()
-
-        for ticker in other_tickers:
-            sql = f"SELECT max(last_update) FROM {TABLE_NAME_USA_COMP_INFO} WHERE ticker='{ticker}'"
-            self.cur.execute(sql)
-            result = self.cur.fetchone()
-            sql = ''
-            if result[0] is None:
-                print(f"{ticker} isn't in DB")
-                sql = f"INSERT INTO {TABLE_NAME_USA_COMP_INFO}(ticker, market, last_update) " \
-                      f"VALUES('{ticker}', 'other', '{today}')"
-            elif result[0].strftime('%Y-%m-%d') < today:
-                print(f"{ticker} is in DB")
-                sql = f"UPDATE {TABLE_NAME_USA_COMP_INFO} SET last_update='{today}' WHERE ticker='{ticker}'"
-            else:
-                print(f"{ticker} already exists")
-
-            if len(sql) > 0:
-                self.cur.execute(sql)
-
-        self.conn.commit()
-
-    def get_all_nas_ticker(self):
-        url = f'https://www.nasdaq.com/market-activity/stocks/screener?exchange=nasdaq'
-        opener = req.build_opener()
-        opener.addheaders = [headers]
-        response = opener.open(url)
-        soup = BeautifulSoup(response.content, 'html.parser')
-
-        tickers = []
-        for row in soup.find_all('tbody')[0].find_all('tr'):
-            ticker = row.find_all('td')[0].text.strip()
-            tickers.append(ticker)
-            return
 
     def update_usa_price(self):
         start_time = datetime.today().strftime("%Y-%m-%d")
         self._update_usa_price(start_time=start_time, market='nasdaq')
         self._update_usa_price(start_time=start_time, market='other')
-        return
 
     def _update_usa_price(self, start_date=None, end_date=None, start_time="", market=None):
         if not market:
@@ -104,37 +67,34 @@ class USAUpdater:
         starttime = time.time()
         ###
         self.cur.execute(sql)
-        tickers = self.cur.fetchall()
+        result = self.cur.fetchall()
+        tickers = [ticker[0] for ticker in result]
 
-        count = 0
-
+        update_done_count = 0
         for ticker in tickers:
-            tic = ticker[0]
+            # 이미 실행한 날에 가격 업데이트를 마쳤는지 확인
             sql = f"SELECT EXISTS(SELECT 1 FROM {TABLE_NAME_USA_DAILY_PRICE} " \
-                  f"WHERE ticker='{tic}' and update_date='{start_time}') as cnt"
-            self.cur.execute(sql)
+                  f"WHERE ticker=%s and update_date=%s) as cnt"
+            self.cur.execute(sql, (ticker, start_time))
             result = self.cur.fetchone()
 
             if result[0] != 0:
-                print(f"Update {tic}'s price already done at {start_time}")
+                print(f"Update {ticker}'s price already done at {start_time}")
                 continue
 
-            if start_date is None:
-                sql = f"SELECT max(market_date) FROM {TABLE_NAME_USA_DAILY_PRICE} WHERE ticker='{tic}'"
-                self.cur.execute(sql)
-                last_update = self.cur.fetchone()[0]
-                if last_update is None:
-                    start_date = None
-                else:
-                    start_date = last_update + timedelta(1)
+            sql = f"SELECT max(market_date) FROM {TABLE_NAME_USA_DAILY_PRICE} WHERE ticker='{ticker}'"
+            self.cur.execute(sql)
+            last_update = self.cur.fetchone()[0]
+
+            if start_date is None and last_update is not None:
+                start_date = last_update + timedelta(1)
 
             try:
-                price = si.get_data(ticker=tic, start_date=start_date, end_date=end_date)
+                price = stock_info.get_data(ticker=ticker, start_date=start_date, end_date=end_date)
+                if price is None:
+                    continue
             except Exception as e:
                 print(e)
-                continue
-
-            if price is None:
                 continue
 
             price.index.name = 'market_date'
@@ -144,18 +104,30 @@ class USAUpdater:
 
             for idx, daily_price in price.iterrows():
                 market_time = idx.strftime('%Y-%m-%d')
+
+                # daily_price와 다른 필요한 변수들을 하나의 dict에 모읍니다.
+                data = {
+                    'ticker': ticker,
+                    'market_date': market_time,
+                    'update_date': start_time,
+                    'market': market,
+                    'open': daily_price['open'],
+                    'high': daily_price['high'],
+                    'low': daily_price['low'],
+                    'close': daily_price['close'],
+                    'today_diff': daily_price['today_diff'],
+                    'yesterday_diff': daily_price['yesterday_diff'],
+                    'volume': daily_price['volume'],
+                }
+
                 if last_update and idx <= last_update:
-                    sql = f"UPDATE {TABLE_NAME_USA_DAILY_PRICE} SET ticker='{tic}', market_date='{market_time}', " \
-                          f"update_date='{start_time}', market='{market}', open='{daily_price['open']}', " \
-                          f"high='{daily_price['high']}', low='{daily_price['low']}', close='{daily_price['close']}', " \
-                          f"today_diff='{daily_price['today_diff']}', yesterday_diff='{daily_price['yesterday_diff']}', " \
-                          f"volume='{daily_price['volume']}' WHERE ticker='{tic}' and market_date='{market_time}'"
+                    # 이 dict를 사용하여 UPDATE 쿼리를 생성합니다.
+                    sql = f"UPDATE {TABLE_NAME_USA_DAILY_PRICE} SET " + ', '.join(f"{k}=%({k})s" for k in data.keys()) \
+                          + " WHERE ticker=%(ticker)s and market_date=%(market_date)s"
                 else:
-                    sql = f"INSERT INTO {TABLE_NAME_USA_DAILY_PRICE}(ticker, market_date, update_date, market, open, " \
-                          f"high, low, close, today_diff, yesterday_diff, volume) " \
-                          f"VALUES('{tic}', '{market_time}', '{start_time}', '{market}', '{daily_price['open']}', " \
-                          f"'{daily_price['high']}', '{daily_price['low']}', '{daily_price['close']}', " \
-                          f"'{daily_price['today_diff']}', '{daily_price['yesterday_diff']}', '{daily_price['volume']}')"
+                    # 이 dict를 사용하여 INSERT 쿼리를 생성합니다.
+                    sql = f"INSERT INTO {TABLE_NAME_USA_DAILY_PRICE}(" + ', '.join(data.keys()) + \
+                          ") VALUES (" + ', '.join(f"%({k})s" for k in data.keys()) + ")"
 
                 try:
                     self.cur.execute(sql)
@@ -164,158 +136,11 @@ class USAUpdater:
                     print(f"market_update in DB: {last_update} / start_date: {start_date}")
                     print(f"SQL: {sql}")
                     print(e)
-            count += 1
-            print(f"Ticker: {tic}, Count: {count} is done")
+
+            update_done_count += 1
+            print(f"Ticker: {ticker}, Count: {update_done_count} is done")
             self.conn.commit()
-        endtime = time.time()
-        print(f"Elapsed time = {endtime-starttime}")
 
-    def update_nas_price(self, start_date=None, end_date=None, start_time=""):
-        sql = f"SELECT ticker FROM {TABLE_NAME_USA_COMP_INFO} WHERE market='nasdaq'"
-
-        ###
-        starttime = time.time()
-        ###
-        self.cur.execute(sql)
-        tickers = self.cur.fetchall()
-
-        count = 0
-
-        for ticker in tickers:
-            tic = ticker[0]
-            sql = f"SELECT EXISTS(SELECT 1 FROM {TABLE_NAME_USA_DAILY_PRICE} " \
-                  f"WHERE ticker='{tic}' and update_date='{start_time}') as cnt"
-            self.cur.execute(sql)
-            result = self.cur.fetchone()
-
-            if result[0] != 0:
-                print(f"Update {tic}'s price already done at {start_time}")
-                continue
-
-            if start_date is None:
-                sql = f"SELECT max(market_date) FROM {TABLE_NAME_USA_DAILY_PRICE} WHERE ticker='{tic}'"
-                self.cur.execute(sql)
-                last_update = self.cur.fetchone()[0]
-                if last_update is None:
-                    start_date = None
-                else:
-                    start_date = last_update + timedelta(1)
-
-            try:
-                price = si.get_data(ticker=tic, start_date=start_date, end_date=end_date)
-            except Exception as e:
-                print(e)
-                continue
-
-            if price is None:
-                continue
-
-            price.index.name = 'market_date'
-            date = price.index.strftime("%Y-%m-%d")
-            date1 = date[0]
-            price['today_diff'] = price['close'] - price['open']
-            price['yesterday_diff'] = (price.close - price.close.shift()).fillna(0)
-            price = price.dropna()
-
-            for idx, daily_price in price.iterrows():
-                market_time = idx.strftime('%Y-%m-%d')
-                if last_update and idx <= last_update:
-                    sql = f"UPDATE {TABLE_NAME_USA_DAILY_PRICE} SET ticker='{tic}', market_date='{market_time}', " \
-                          f"update_date='{start_time}', market='nasdaq', open='{daily_price['open']}', " \
-                          f"high='{daily_price['high']}', low='{daily_price['low']}', close='{daily_price['close']}', " \
-                          f"today_diff='{daily_price['today_diff']}', yesterday_diff='{daily_price['yesterday_diff']}', " \
-                          f"volume='{daily_price['volume']}' WHERE ticker='{tic}' and market_date='{market_time}'"
-                else:
-                    sql = f"INSERT INTO {TABLE_NAME_USA_DAILY_PRICE}(ticker, market_date, update_date, market, open, " \
-                          f"high, low, close, today_diff, yesterday_diff, volume) " \
-                          f"VALUES('{tic}', '{market_time}', '{start_time}', 'nasdaq', '{daily_price['open']}', " \
-                          f"'{daily_price['high']}', '{daily_price['low']}', '{daily_price['close']}', " \
-                          f"'{daily_price['today_diff']}', '{daily_price['yesterday_diff']}', '{daily_price['volume']}')"
-
-                try:
-                    self.cur.execute(sql)
-                except Exception as e:
-                    print(f"{ticker} has error while inserting execution")
-                    print(f"market_update in DB: {last_update} / start_date: {start_date}")
-                    print(f"SQL: {sql}")
-                    print(e)
-            count += 1
-            print(f"Ticker: {tic}, Count: {count} is done")
-            self.conn.commit()
-        endtime = time.time()
-        print(f"Elapsed time = {endtime-starttime}")
-
-    def update_other_price(self, start_date=None, end_date=None, start_time=""):
-        sql = f"SELECT ticker FROM {TABLE_NAME_USA_COMP_INFO} WHERE market='other'"
-
-        ###
-        starttime = time.time()
-        ###
-        self.cur.execute(sql)
-        tickers = self.cur.fetchall()
-
-        count = 0
-
-        for ticker in tickers:
-            tic = ticker[0]
-            sql = f"SELECT EXISTS(SELECT 1 FROM {TABLE_NAME_USA_DAILY_PRICE} " \
-                  f"WHERE ticker='{tic}' and update_date='{start_time}') as cnt"
-            self.cur.execute(sql)
-            result = self.cur.fetchone()
-
-            if result[0] != 0:
-                print(f"Update {tic}'s price already done at {start_time}")
-                continue
-
-            if start_date is None:
-                sql = f"SELECT max(market_date) FROM {TABLE_NAME_USA_DAILY_PRICE} WHERE ticker='{tic}'"
-                self.cur.execute(sql)
-                last_update = self.cur.fetchone()[0]
-                if last_update is None:
-                    start_date = None
-                else:
-                    start_date = last_update + timedelta(1)
-
-            try:
-                price = si.get_data(ticker=tic, start_date=start_date, end_date=end_date)
-            except Exception as e:
-                print(e)
-                continue
-
-            if price is None:
-                continue
-
-            price.index.name = 'market_date'
-            date = price.index.strftime("%Y-%m-%d")
-            date1 = date[0]
-            price['today_diff'] = price['close'] - price['open']
-            price['yesterday_diff'] = (price.close - price.close.shift()).fillna(0)
-            price = price.dropna()
-
-            for idx, daily_price in price.iterrows():
-                market_time = idx.strftime('%Y-%m-%d')
-                if last_update and idx <= last_update:
-                    sql = f"UPDATE {TABLE_NAME_USA_DAILY_PRICE} SET ticker='{tic}', market_date='{market_time}', " \
-                          f"update_date='{start_time}', market='other', open='{daily_price['open']}', " \
-                          f"high='{daily_price['high']}', low='{daily_price['low']}', close='{daily_price['close']}', " \
-                          f"today_diff='{daily_price['today_diff']}', yesterday_diff='{daily_price['yesterday_diff']}', " \
-                          f"volume='{daily_price['volume']}' WHERE ticker='{tic}' and market_date='{market_time}'"
-                else:
-                    sql = f"INSERT INTO {TABLE_NAME_USA_DAILY_PRICE}(ticker, market_date, update_date, market, open, " \
-                          f"high, low, close, today_diff, yesterday_diff, volume) " \
-                          f"VALUES('{tic}', '{market_time}', '{start_time}', 'other', '{daily_price['open']}', " \
-                          f"'{daily_price['high']}', '{daily_price['low']}', '{daily_price['close']}', " \
-                          f"'{daily_price['today_diff']}', '{daily_price['yesterday_diff']}', '{daily_price['volume']}')"
-
-                try:
-                    self.cur.execute(sql)
-                except Exception as e:
-                    print(f"{ticker} has error while inserting execution")
-                    print(f"market_update in DB: {last_update} / start_date: {start_date}")
-                    print(f"SQL: {sql}")
-                    print(e)
-            count += 1
-            self.conn.commit()
         endtime = time.time()
         print(f"Elapsed time = {endtime-starttime}")
 
@@ -324,7 +149,7 @@ class USAUpdater:
 
         sql = f"SHOW FULL COLUMNS from sp500_indv_price"
         cols = pd.read_sql(sql, self.conn)
-        sp500_tickers = si.tickers_sp500()
+        sp500_tickers = stock_info.tickers_sp500()
 
         # Column 과 ticker 매칭 확인 후 없는 ticker 추가
         for idx, ticker in enumerate(sp500_tickers):
