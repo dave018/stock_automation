@@ -5,7 +5,7 @@ import time
 from bs4 import BeautifulSoup
 from datetime import timedelta
 from urllib import request as req
-from yahoo_fin import stock_info
+from yahoo_fin import stock_info as si
 
 from db_vars import *
 from asap_logger import *
@@ -35,7 +35,7 @@ class USAUpdater:
         existed_companies = set([row[0] for row in result])
 
         today = datetime.today().strftime("%Y-%m-%d")
-        current_nasdaq_tickers = set(stock_info.tickers_nasdaq())
+        current_nasdaq_tickers = set(si.tickers_nasdaq())
 
         new_tickers = current_nasdaq_tickers - existed_companies
 
@@ -90,7 +90,7 @@ class USAUpdater:
                 start_date = last_update + timedelta(1)
 
             try:
-                price = stock_info.get_data(ticker=ticker, start_date=start_date, end_date=end_date)
+                price = si.get_data(ticker=ticker, start_date=start_date, end_date=end_date)
                 if price is None:
                     continue
             except Exception as e:
@@ -144,47 +144,42 @@ class USAUpdater:
         endtime = time.time()
         print(f"Elapsed time = {endtime-starttime}")
 
-    def update_sp500_price(self):
+    def update_sp500_info(self):
+        today = datetime.today().strftime('%Y-%m-%d')
+        sql = f"SELECT * FROM sp500_info"
+        self.cur.execute(sql)
+        existed_sp500 = self.cur.fetchall()
+        curr_sp500 = si.tickers_sp500()
+
+        removed_targets = [ticker for ticker in existed_sp500 if ticker not in curr_sp500]
+
+        for target in removed_targets:
+            sql = f"DELETE FROM sp500_info where ticker='{target}'"
+            self.cur.execute(sql)
+            sql = f"DELETE FROM sp500_daily_price where ticker='{target}'"
+            self.cur.execute(sql)
+
+        for ticker in curr_sp500:
+            sql = (f"INSERT INTO sp500_info(ticker, market, last_update) "
+                   f"VALUES('{ticker}', 'sp500', '{today}')")
+            self.cur.execute(sql)
+
+        self.conn.commit()
+
+    def update_sp500_daily_price(self):
         starttime = time.time()
 
-        sql = f"SHOW FULL COLUMNS from sp500_indv_price"
-        cols = pd.read_sql(sql, self.conn)
-        sp500_tickers = stock_info.tickers_sp500()
+        sql = f"SELECT * FROM sp500_info"
+        self.cur.execute(sql)
+        sp500_tickers = [sublist[0] for sublist in self.cur.fetchall()]
 
-        # Column 과 ticker 매칭 확인 후 없는 ticker 추가
-        for idx, ticker in enumerate(sp500_tickers):
-            if not ticker in cols['Field'].values:
-                try:
-                    sql = f"ALTER TABLE sp500_indv_price ADD {ticker} FLOAT Default -1"
-                    self.cur.execute(sql)
-                    self.conn.commit()
-                except Exception as e:
-                    print(f"[{idx}]{ticker} failed to update")
-                    print(e)
-
-        # ticker별로 close 값 추가하기. PK는 datetime이다.
-        for idx, ticker in enumerate(sp500_tickers):
-            print(f"idx: {idx} / ticker: {ticker}")
-            sql = f"SELECT * FROM usa_daily_price where ticker='{ticker}'"
-            price_df = pd.read_sql(sql, self.conn)
-            price_df.index = price_df['market_date']
-
-            if price_df.shape[0] == 0:
-                continue
-
-            for idx, row in price_df.iterrows():
-                sql = f"SELECT EXISTS(SELECT 1 FROM sp500_indv_price WHERE market_date='{idx}') as cnt"
-                self.cur.execute(sql)
-                result = self.cur.fetchone()
-                if result[0] == 0:
-                    sql = f"INSERT INTO sp500_indv_price(market_date) VALUES('{idx}')"
-                    self.cur.execute(sql)
-                    self.conn.commit()
-                    continue
-
-                sql = f"UPDATE sp500_indv_price SET {ticker}='{row['close']}' WHERE market_date='{idx}'"
-                self.cur.execute(sql)
-                self.conn.commit()
-
-        endtime = time.time()
-        print(f"Elapsed time = {endtime-starttime}")
+        for ticker in sp500_tickers:
+            sql = (f"INSERT INTO "
+                   f"sp500_daily_price(ticker, market_date, update_date, market, open, high, low, close, today_diff, "
+                   f"yesterday_diff, volume) "
+                   f"SELECT ticker, market_date, update_date, market, open, high, low, close, today_diff, "
+                   f"yesterday_diff, volume "
+                   f"FROM usa_daily_price WHERE ticker='{ticker}'")
+            self.cur.execute(sql)
+        self.conn.commit()
+        print(f"Elapsed time = {time.time()-starttime}")
