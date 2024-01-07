@@ -21,8 +21,7 @@ class DBConnector:
         return
 
     def db_connect(self, host, user, password, db, charset):
-        self.conn = pymysql.connect(host=host, user=user, password=password,
-                                    db=db, charset=charset)
+        self.conn = pymysql.connect(host=host, user=user, password=password, db=db, charset=charset)
         return self.conn
 
     def db_connect_need_input(self):
@@ -32,8 +31,7 @@ class DBConnector:
             print("Enter {}".format(params[i]))
             args.append(input())
 
-        self.conn = pymysql.connect(host=args[0], user=args[1], password=args[2],
-                                    db=args[3], charset=args[4])
+        self.conn = pymysql.connect(host=args[0], user=args[1], password=args[2], db=args[3], charset=args[4])
 
         return self.conn
 
@@ -62,4 +60,3 @@ class DBConnector:
 
     def tmp_discon(self):
         self.conn.close()
-
