@@ -14,6 +14,7 @@ from asap_logger import *
 ''' Vars for Web-scraping '''
 headers = ('User-Agent', 'Mozilla/5.0')
 
+
 class USAUpdater:
     def __init__(self):
         """ 생성자: MariaDB 연결하는 conn 생성 및 (cods:company)관계의 dict 생성 """

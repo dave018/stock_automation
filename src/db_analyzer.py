@@ -9,7 +9,6 @@ from asap_logger import *
 
 
 class DBAnalyzer:
-
     def __init__(self):
         self.stock_list = []
 
@@ -52,7 +51,7 @@ class DBAnalyzer:
 
         return comps
 
-    def get_stock_info(self, start='', end='', codes=[]):
+    def get_stock_info(self, codes=[]):
         # Get all-time data of selected company
         dbc = DBConnector()
         conn = dbc.tmp_connect()
