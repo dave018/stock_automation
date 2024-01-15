@@ -124,11 +124,11 @@ class USAUpdater:
                 if last_update and idx <= last_update:
                     # 이 dict를 사용하여 UPDATE 쿼리를 생성합니다.
                     sql = f"UPDATE {TABLE_NAME_USA_DAILY_PRICE} SET " + ', '.join(f"{k}=%({k})s" for k in data.keys()) \
-                          + " WHERE ticker=%(ticker)s and market_date=%(market_date)s"
+                          + f" WHERE ticker={ticker} and market_date={market_time}"
                 else:
                     # 이 dict를 사용하여 INSERT 쿼리를 생성합니다.
                     sql = f"INSERT INTO {TABLE_NAME_USA_DAILY_PRICE}(" + ', '.join(data.keys()) + \
-                          ") VALUES (" + ', '.join(f"%({k})s" for k in data.keys()) + ")"
+                          ") VALUES (" + ', '.join(f"'{data[k]}'" for k in data.keys()) + ")"
 
                 try:
                     self.cur.execute(sql)
