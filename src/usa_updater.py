@@ -146,6 +146,7 @@ class USAUpdater:
         print(f"Elapsed time = {endtime-starttime}")
 
     def update_sp500_info(self):
+        starttime = time.time()
         today = datetime.today().strftime('%Y-%m-%d')
         sql = f"SELECT * FROM sp500_info"
         self.cur.execute(sql)
@@ -155,9 +156,9 @@ class USAUpdater:
         removed_targets = [ticker for ticker in existed_sp500 if ticker not in curr_sp500]
 
         for target in removed_targets:
-            sql = f"DELETE FROM sp500_info where ticker='{target}'"
+            sql = f"DELETE FROM sp500_info where ticker='{target[0]}'"
             self.cur.execute(sql)
-            sql = f"DELETE FROM sp500_daily_price where ticker='{target}'"
+            sql = f"DELETE FROM sp500_daily_price where ticker='{target[0]}'"
             self.cur.execute(sql)
 
         for ticker in curr_sp500:
@@ -166,6 +167,7 @@ class USAUpdater:
             self.cur.execute(sql)
 
         self.conn.commit()
+        print(f"Elapsed time = {time.time()-starttime}")
 
     def update_sp500_daily_price(self):
         starttime = time.time()
